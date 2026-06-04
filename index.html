@@ -1,1 +1,798 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Bishi Bashi: Toilet Dash</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #222;
+            font-family: 'Press Start 2P', cursive;
+            touch-action: none;
+            color: white;
+            user-select: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            background: linear-gradient(to bottom, #87CEEB 0%, #E0F6FF 100%);
+        }
+
+        #ladder-container {
+            position: absolute;
+            bottom: 20%;
+            width: 100%;
+            height: 80%;
+            display: flex;
+            flex-direction: column-reverse;
+            align-items: center;
+            overflow: visible;
+            pointer-events: none;
+            transition: transform 0.15s ease-out;
+            z-index: 5;
+        }
+
+        .vertical-rung-wrapper {
+            width: 150px;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .rung {
+            width: 100%;
+            height: 20px;
+            border-radius: 5px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3) inset, 0 -2px 4px rgba(0,0,0,0.5);
+            transition: transform 0.1s;
+            position: relative;
+            z-index: 2;
+        }
+
+        .vertical-rung-wrapper::before, .vertical-rung-wrapper::after {
+            content: '';
+            position: absolute;
+            top: -40px;
+            bottom: 0;
+            width: 14px;
+            background-color: #8B4513;
+            border: 3px solid #5C2E00;
+            z-index: 1;
+        }
+        .vertical-rung-wrapper::before { left: 0; }
+        .vertical-rung-wrapper::after { right: 0; }
+
+        .step-spacer {
+            width: 100%;
+            height: 40px;
+            flex-shrink: 0;
+        }
+        
+        .toilet-end {
+            width: 200px;
+            height: 250px;
+            flex-shrink: 0;
+            background-image: url('https://raw.githubusercontent.com/fauzanbunz/Toilet/main/toil.png');
+            background-size: contain;
+            background-position: center bottom;
+            background-repeat: no-repeat;
+            margin-bottom: 20px;
+            z-index: 10;
+        }
+
+        .toilet-end.finished {
+            background-image: url('https://raw.githubusercontent.com/fauzanbunz/Toilet/main/toiltoons.png');
+            width: 300px;
+            height: 300px;
+            z-index: 60;
+        }
+
+        /* Clouds */
+        .cloud {
+            position: absolute;
+            background-image: url('https://raw.githubusercontent.com/fauzanbunz/Toilet/main/awan.png');
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            opacity: 0.7;
+        }
+
+        @keyframes float-left {
+            from { left: 100%; }
+            to { left: -300px; }
+        }
+
+        @keyframes float-right {
+            from { left: -300px; }
+            to { left: 100%; }
+        }
+
+        /* Birds */
+        .bird {
+            position: absolute;
+            width: 100px;
+            aspect-ratio: 225 / 230; /* Menjaga rasio asli agar tidak stretch */
+            background-image: url('https://raw.githubusercontent.com/fauzanbunz/Toilet/main/pantat%20terbang.png');
+            background-size: 200% auto; /* Auto agar tingginya proporsional */
+            background-repeat: no-repeat;
+            filter: drop-shadow(0 10px 8px rgba(0,0,0,0.4));
+        }
+
+        @keyframes flap {
+            0%, 49.9% { background-position: 0% 0%; }
+            50%, 100% { background-position: 100% 0%; }
+        }
+
+        @keyframes fly-left-bird {
+            0% { transform: translate(100vw, 0) scaleX(1); }
+            25% { transform: translate(50vw, -40px) scaleX(1); }
+            50% { transform: translate(0vw, 30px) scaleX(1); }
+            75% { transform: translate(-50vw, -20px) scaleX(1); }
+            100% { transform: translate(-100vw, 0) scaleX(1); }
+        }
+
+        @keyframes fly-right-bird {
+            0% { transform: translate(-100vw, 0) scaleX(-1); }
+            25% { transform: translate(-50vw, 40px) scaleX(-1); }
+            50% { transform: translate(0vw, -30px) scaleX(-1); }
+            75% { transform: translate(50vw, 20px) scaleX(-1); }
+            100% { transform: translate(100vw, 0) scaleX(-1); }
+        }
+
+        /* Bottom Decoration */
+        .bottom-right-decor {
+            position: absolute;
+            bottom: -50px;
+            right: 5%;
+            width: 320px;
+            z-index: 15;
+            pointer-events: none;
+            filter: drop-shadow(0 15px 15px rgba(0,0,0,0.6));
+        }
+        @media (max-width: 768px) {
+            .bottom-right-decor {
+                width: 220px;
+                right: -20px;
+            }
+        }
+
+        /* Target Indicator */
+        .step-target-indicator {
+            box-shadow: 0 0 15px 8px rgba(255, 255, 0, 0.9) !important;
+            outline: 4px solid #FF0 !important;
+            outline-offset: 2px;
+            transform: scale(1.15) !important;
+            z-index: 25 !important;
+            animation: pulse-glow 0.6s alternate infinite;
+        }
+        
+        @keyframes pulse-glow {
+            0% { box-shadow: 0 0 10px 2px rgba(255, 255, 0, 0.7); outline-color: rgba(255, 255, 0, 0.7); }
+            100% { box-shadow: 0 0 25px 10px rgba(255, 255, 0, 1); outline-color: rgba(255, 255, 0, 1); }
+        }
+
+        #player {
+            position: absolute;
+            width: 150px;
+            height: 378px;
+            background-image: url('https://raw.githubusercontent.com/fauzanbunz/Toilet/main/l3.png');
+            background-size: 200% auto;
+            background-repeat: no-repeat;
+            background-position: 0% 0%;
+            bottom: 0;
+            left: 50%;
+            transform: translate(-50%, 180px);
+            transition: bottom 0.15s ease-out, opacity 0.2s ease-out;
+            z-index: 50;
+        }
+
+        #player.frame-2 {
+            background-position: 100% 0%;
+        }
+
+        #player.climbing { animation: wiggle 0.2s alternate infinite; }
+        #player.falling { animation: shake 0.3s ease-in-out; filter: brightness(0.7) sepia(1) hue-rotate(-50deg) saturate(5); }
+        #player.won { filter: drop-shadow(0 0 15px gold); }
+
+        @keyframes wiggle {
+            0% { transform: translate(-50%, 180px) rotate(-5deg); }
+            100% { transform: translate(-50%, 180px) rotate(5deg); }
+        }
+        @keyframes shake {
+            0%, 100% { transform: translate(-50%, 180px); }
+            25% { transform: translate(-60%, 180px); }
+            75% { transform: translate(-40%, 180px); }
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+            box-sizing: border-box;
+            z-index: 20;
+        }
+
+        .stats-bar {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            text-shadow: 2px 2px 0 #000;
+        }
+
+        #controls {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            padding: 20px;
+            padding-bottom: max(20px, env(safe-area-inset-bottom));
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            background: rgba(0, 0, 0, 0.7);
+            box-sizing: border-box;
+            pointer-events: auto;
+            z-index: 30;
+        }
+
+        .btn-color {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: 6px solid rgba(255,255,255,0.8);
+            box-shadow: 0 10px 0 rgba(0,0,0,0.5), inset 0 5px 10px rgba(255,255,255,0.5);
+            cursor: pointer;
+            outline: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            color: white;
+            text-shadow: 1px 1px 0 #000;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .btn-color:active, .btn-color.active {
+            transform: translateY(5px);
+            box-shadow: 0 5px 0 rgba(0,0,0,0.5), inset 0 5px 10px rgba(255,255,255,0.5);
+        }
+
+        .color-red { background-color: #FF3333; border-color: #FF9999; }
+        .color-green { background-color: #33FF33; border-color: #99FF99; }
+        .color-blue { background-color: #3388FF; border-color: #99CCFF; }
+
+        .overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 50;
+            pointer-events: auto;
+            text-align: center;
+        }
+
+        #start-screen, #game-over-screen {
+            background-color: #3b82f6; /* Flat blue background permanen */
+        }
+
+        #splash-screen {
+            background-color: #fdc31d; /* Background flat kuning/oranye untuk halaman awal */
+        }
+        
+        .hidden { display: none !important; }
+
+        .title-text {
+            font-size: 30px;
+            color: #FFD700;
+            text-shadow: 4px 4px 0 #FF0000;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+
+        .start-btn {
+            padding: 15px 30px;
+            font-size: 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: 4px solid white;
+            border-radius: 10px;
+            cursor: pointer;
+            font-family: inherit;
+            box-shadow: 0 5px 0 #2E8B57;
+        }
+        .start-btn:active {
+            transform: translateY(5px);
+            box-shadow: 0 0px 0 #2E8B57;
+        }
+        
+        #keyboard-hints {
+            margin-top: 20px;
+            font-size: 12px;
+            color: #ccc;
+            line-height: 1.8;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        
+        <div id="cloud-container" class="absolute top-0 left-0 w-full h-full pointer-events-none z-0"></div>
+        <div id="bird-container" class="absolute top-0 left-0 w-full h-full pointer-events-none z-10"></div>
+
+        <div id="ladder-container">
+            <!-- Rungs and platforms will be generated here by JS -->
+            <div id="player"></div>
+        </div>
+
+        <div id="ui-layer">
+            <div class="stats-bar">
+                <div class="text-xl text-yellow-400">Distance: <span id="distance-display">50</span>m</div>
+                <div class="text-xl text-white">Time: <span id="time-display" class="text-green-400">30.0</span>s</div>
+            </div>
+            
+            <div id="feedback" class="absolute top-1/3 left-1/2 transform -translate-x-1/2 text-3xl font-bold opacity-0 transition-opacity duration-200 pointer-events-none text-center">
+            </div>
+        </div>
+
+        <div id="controls">
+        <button class="btn-color color-red" id="btn-red" data-color="red"></button>
+        <button class="btn-color color-green" id="btn-green" data-color="green"></button>
+        <button class="btn-color color-blue" id="btn-blue" data-color="blue"></button>
+    </div>
+</div>
+
+<div id="splash-screen" class="overlay">
+    <img src="https://raw.githubusercontent.com/fauzanbunz/Toilet/main/judul.jpg" alt="Title Screen" class="w-11/12 md:w-4/5 h-[70vh] object-contain mb-8 drop-shadow-2xl border-4 border-white rounded-xl hover:scale-[1.02] transition-transform duration-300">
+    <button id="lets-play-btn" class="start-btn bg-red-500 shadow-red-700 text-white border-white hover:bg-red-400 transition-colors z-10">LET'S PLAY</button>
+</div>
+
+<div id="start-screen" class="overlay hidden">
+    <img src="https://raw.githubusercontent.com/fauzanbunz/Toilet/main/ton.png" alt="Toilet Dash Logo" class="w-72 md:w-96 mb-6 drop-shadow-2xl hover:scale-105 transition-transform duration-300">
+        <p class="text-white mb-6 text-sm max-w-md px-4 leading-relaxed">
+            Watch for the <b class="text-yellow-300">GLOWING</b> step!<br>
+            Press the matching color button for the glowing target.<br><br>
+            Wrong press = Fall 1 step.<br>
+            Time out = Game Over.<br>
+        </p>
+        <button id="start-btn" class="start-btn">PLAY NOW</button>
+        <div id="keyboard-hints">
+            Keyboard: <br>
+            Left (Red) | Down (Green) | Right (Blue)<br>
+            Or A (Red) | S (Green) | D (Blue)
+        </div>
+    </div>
+
+    <div id="game-over-screen" class="overlay hidden">
+        <div id="end-title" class="title-text text-yellow-300">TIME'S UP!</div>
+        <img src="https://raw.githubusercontent.com/fauzanbunz/Toilet/main/telek.png" alt="Failed Scene" class="w-64 md:w-80 mb-6 drop-shadow-2xl">
+        <p class="text-white mb-6 text-lg">You didn't make it to the toilet...</p>
+        <button id="restart-btn" class="start-btn bg-red-500 shadow-red-700 border-white hover:bg-red-400 transition-colors">TRY AGAIN</button>
+    </div>
+
+    <div id="victory-screen" class="absolute top-0 left-0 w-full h-full flex flex-col justify-center items-end pr-8 md:pr-16 z-50 hidden pointer-events-none">
+        <div class="pointer-events-auto flex flex-col items-end bg-black/40 p-6 rounded-2xl backdrop-blur-md border border-white/20 shadow-2xl">
+            <div class="title-text text-green-400 mb-2">RELIEF!</div>
+            <div class="text-4xl mb-4">✨😎</div>
+            <p class="text-white mb-2 text-lg text-right">Time Left: <span id="final-time" class="text-yellow-400 font-bold"></span>s</p>
+            <p class="text-gray-300 mb-6 text-sm text-right">Total steps: <span id="final-steps"></span></p>
+            <button id="next-level-btn" class="start-btn bg-yellow-500 shadow-yellow-700 text-black border-black hover:bg-yellow-400 transition-colors">PLAY AGAIN</button>
+        </div>
+    </div>
+
+
+    <script>
+        const gameConfig = {
+            colors: ['red', 'green', 'blue'],
+            hexColors: {
+                'red': '#FF3333',
+                'green': '#33FF33',
+                'blue': '#3388FF'
+            },
+            totalSteps: 50,
+            timeLimit: 30.0, 
+            penaltySteps: 1
+        };
+
+        let gameState = {
+            isRunning: false,
+            currentStepIndex: 0, 
+            steps: [], 
+            timeLeft: gameConfig.timeLimit,
+            timerInterval: null,
+            baseOffset: 0
+        };
+
+        const ladderContainer = document.getElementById('ladder-container');
+        const player = document.getElementById('player');
+        const timeDisplay = document.getElementById('time-display');
+        const distDisplay = document.getElementById('distance-display');
+        const feedback = document.getElementById('feedback');
+        
+        // Setup Audio
+        const bgMusic = new Audio('https://raw.githubusercontent.com/fauzanbunz/Toilet/main/Coin%20Chase%20Chaos.mp3');
+        bgMusic.loop = true;
+        bgMusic.volume = 0.3; // Volume 30%
+
+        const fartSound1 = new Audio('https://raw.githubusercontent.com/fauzanbunz/Toilet/main/ElevenLabs_A_series_of_quick%2C_short_fart_sounds_in_rapid_succession%2C_light_and_cartoony%2C_comedic_rhythm%2C_total_.mp3');
+        const fartSound2 = new Audio('https://raw.githubusercontent.com/fauzanbunz/Toilet/main/fart-08.mp3');
+        let fartTimer = null;
+
+        const screens = {
+            splash: document.getElementById('splash-screen'),
+            start: document.getElementById('start-screen'),
+            gameOver: document.getElementById('game-over-screen'),
+            victory: document.getElementById('victory-screen')
+        };
+
+        function initBirds() {
+            const birdContainer = document.getElementById('bird-container');
+            if (!birdContainer) return;
+            birdContainer.innerHTML = '';
+
+            for (let i = 0; i < 5; i++) {
+                const bird = document.createElement('div');
+                bird.className = 'bird';
+                
+                const scale = Math.random() * 0.4 + 0.6;
+                bird.style.width = `${100 * scale}px`;
+                /* Hapus pengaturan height manual agar mengikuti aspect-ratio */
+
+                bird.style.top = `${Math.random() * 80}%`;
+                bird.style.left = `50%`;
+
+                const duration = Math.floor(Math.random() * 10) + 8;
+                const delay = Math.random() * duration * -1;
+
+                const flapSpeed = (Math.random() * 0.2 + 0.2).toFixed(2);
+
+                if (Math.random() > 0.5) {
+                    bird.style.animation = `flap ${flapSpeed}s infinite, fly-left-bird ${duration}s linear infinite`;
+                } else {
+                    bird.style.animation = `flap ${flapSpeed}s infinite, fly-right-bird ${duration}s linear infinite`;
+                }
+                
+                bird.style.animationDelay = `0s, ${delay}s`;
+                birdContainer.appendChild(bird);
+            }
+        }
+
+        function initClouds() {
+            const cloudContainer = document.getElementById('cloud-container');
+            if (!cloudContainer) return;
+            cloudContainer.innerHTML = ''; 
+
+            for (let i = 0; i < 8; i++) {
+                const cloud = document.createElement('div');
+                cloud.className = 'cloud';
+                
+                const size = Math.floor(Math.random() * 150) + 120;
+                cloud.style.width = `${size}px`;
+                cloud.style.height = `${size * 0.6}px`;
+
+                cloud.style.top = `${Math.random() * 75}%`;
+                
+                const duration = Math.floor(Math.random() * 25) + 15; 
+                const delay = Math.random() * duration * -1; 
+
+                if (Math.random() > 0.5) {
+                    cloud.style.animation = `float-left ${duration}s linear infinite`;
+                } else {
+                    cloud.style.animation = `float-right ${duration}s linear infinite`;
+                }
+                
+                cloud.style.animationDelay = `${delay}s`;
+                cloudContainer.appendChild(cloud);
+            }
+        }
+
+        function initGame() {
+            gameState.currentStepIndex = 0;
+            gameState.timeLeft = gameConfig.timeLimit;
+            gameState.baseOffset = 0;
+            gameState.steps = [];
+            
+            timeDisplay.textContent = gameState.timeLeft.toFixed(1);
+            timeDisplay.className = "text-green-400";
+            distDisplay.textContent = gameConfig.totalSteps;
+            
+            initClouds(); 
+            initBirds(); 
+            
+            ladderContainer.innerHTML = '<div id="player"></div>';
+            player.className = '';
+
+            for (let i = 0; i < gameConfig.totalSteps; i++) {
+                let nextColor;
+                do {
+                    nextColor = gameConfig.colors[Math.floor(Math.random() * gameConfig.colors.length)];
+                } while (
+                    i >= 2 && 
+                    gameState.steps[i-1].color === nextColor && 
+                    gameState.steps[i-2].color === nextColor
+                );
+
+                gameState.steps.push({ type: 'vertical', color: nextColor });
+
+                const spacer = document.createElement('div');
+                spacer.classList.add('step-spacer');
+                ladderContainer.appendChild(spacer);
+
+                const stepEl = document.createElement('div');
+                stepEl.id = `step-${i}`;
+                stepEl.style.backgroundColor = gameConfig.hexColors[nextColor];
+
+                const wrapper = document.createElement('div');
+                wrapper.classList.add('vertical-rung-wrapper');
+                stepEl.classList.add('rung');
+                wrapper.appendChild(stepEl);
+                ladderContainer.appendChild(wrapper);
+            }
+
+            const toiletContainer = document.createElement('div');
+            toiletContainer.id = 'toilet-element';
+            toiletContainer.className = 'toilet-end';
+            ladderContainer.appendChild(toiletContainer);
+
+            const bottomDecor = document.createElement('img');
+            bottomDecor.src = 'https://raw.githubusercontent.com/fauzanbunz/Toilet/main/plat.png';
+            bottomDecor.className = 'bottom-right-decor';
+            ladderContainer.appendChild(bottomDecor);
+
+            const newPlayer = document.getElementById('player');
+            newPlayer.className = '';
+            newPlayer.style.opacity = '1'; 
+            
+            requestAnimationFrame(() => {
+                updatePlayerPosition(true);
+            });
+        }
+
+        function updatePlayerPosition(instant = false) {
+            let targetY = 0;
+            const containerHeight = ladderContainer.clientHeight;
+            
+            if (gameState.currentStepIndex > 0) {
+                const targetStepEl = document.getElementById(`step-${gameState.currentStepIndex - 1}`);
+                if (targetStepEl) {
+                    const elToMeasure = targetStepEl.closest('.vertical-rung-wrapper') || targetStepEl;
+                    targetY = containerHeight - elToMeasure.offsetTop;
+                }
+            }
+
+            let distanceLeft = gameConfig.totalSteps - gameState.currentStepIndex;
+            distDisplay.textContent = distanceLeft;
+
+            const threshold = containerHeight * 0.2; 
+            
+            const playerEl = document.getElementById('player');
+            playerEl.style.bottom = `${targetY}px`;
+            
+            // Toggle Animation Frame 1 and 2
+            if (gameState.currentStepIndex % 2 === 0) {
+                playerEl.classList.remove('frame-2');
+            } else {
+                playerEl.classList.add('frame-2');
+            }
+            
+            if (targetY > threshold) {
+                gameState.baseOffset = targetY - threshold;
+                ladderContainer.style.transform = `translateY(${gameState.baseOffset}px)`;
+            } else {
+                ladderContainer.style.transform = `translateY(0px)`;
+            }
+
+            document.querySelectorAll('.step-target-indicator').forEach(el => {
+                el.classList.remove('step-target-indicator');
+            });
+            const nextStep = document.getElementById(`step-${gameState.currentStepIndex}`);
+            if (nextStep) {
+                nextStep.classList.add('step-target-indicator');
+            }
+
+            if (!instant && gameState.currentStepIndex > 0) {
+                playerEl.classList.add('climbing');
+                setTimeout(() => playerEl.classList.remove('climbing'), 100);
+            }
+        }
+
+        function handleInput(color) {
+            if (!gameState.isRunning) return;
+            if (gameState.currentStepIndex >= gameConfig.totalSteps) return;
+
+            const targetStep = gameState.steps[gameState.currentStepIndex];
+
+            if (color === targetStep.color) {
+                gameState.currentStepIndex++;
+                
+                const stepEl = document.getElementById(`step-${gameState.currentStepIndex - 1}`);
+                if (stepEl) {
+                    stepEl.style.transform = 'scale(1.05)';
+                    setTimeout(() => stepEl.style.transform = '', 100);
+                }
+
+                updatePlayerPosition();
+
+                if (gameState.currentStepIndex >= gameConfig.totalSteps) {
+                    winGame();
+                }
+
+            } else {
+                showFeedback("WRONG!", "text-red-500");
+                const playerEl = document.getElementById('player');
+                playerEl.classList.add('falling');
+                setTimeout(() => playerEl.classList.remove('falling'), 300);
+
+                gameState.currentStepIndex = Math.max(0, gameState.currentStepIndex - gameConfig.penaltySteps);
+                updatePlayerPosition();
+            }
+        }
+
+        function showFeedback(text, colorClass) {
+            feedback.textContent = text;
+            feedback.className = `absolute top-1/3 left-1/2 transform -translate-x-1/2 text-4xl font-bold transition-all duration-300 pointer-events-none text-center ${colorClass}`;
+            
+            requestAnimationFrame(() => {
+                feedback.classList.remove('opacity-0', 'scale-50');
+                feedback.classList.add('opacity-100', 'scale-110');
+            });
+
+            setTimeout(() => {
+                feedback.classList.remove('opacity-100', 'scale-110');
+                feedback.classList.add('opacity-0', 'scale-50');
+            }, 500);
+        }
+
+        function scheduleNextFart() {
+            if (!gameState.isRunning) return;
+            const randomTime = Math.floor(Math.random() * (6000 - 3000 + 1)) + 3000;
+            fartTimer = setTimeout(() => {
+                if (gameState.isRunning) {
+                    const selectedSound = Math.random() < 0.5 ? fartSound1 : fartSound2;
+                    
+                    selectedSound.currentTime = 0; 
+                    selectedSound.play().catch(e => console.log("Audio play blocked by browser:", e));
+                    
+                    scheduleNextFart();
+                }
+            }, randomTime);
+        }
+
+        function startGame() {
+            initGame();
+            hideAllScreens();
+            gameState.isRunning = true;
+            
+            bgMusic.currentTime = 0;
+            bgMusic.play().catch(e => console.log("Audio play blocked by browser:", e));
+            scheduleNextFart();
+            
+            gameState.timerInterval = setInterval(() => {
+                gameState.timeLeft -= 0.1;
+                timeDisplay.textContent = gameState.timeLeft.toFixed(1);
+
+                if (gameState.timeLeft <= 5) {
+                    timeDisplay.className = "text-red-500 animate-pulse";
+                }
+
+                if (gameState.timeLeft <= 0) {
+                    timeDisplay.textContent = "0.0";
+                    loseGame();
+                }
+            }, 100);
+        }
+
+        function loseGame() {
+            gameState.isRunning = false;
+            clearInterval(gameState.timerInterval);
+            clearTimeout(fartTimer); 
+            bgMusic.pause(); 
+            screens.gameOver.classList.remove('hidden');
+        }
+
+        function winGame() {
+            gameState.isRunning = false;
+            clearInterval(gameState.timerInterval);
+            clearTimeout(fartTimer); 
+            bgMusic.pause(); 
+            
+            const playerEl = document.getElementById('player');
+            playerEl.classList.add('won');
+            playerEl.style.opacity = '0'; 
+            
+            const toiletEl = document.getElementById('toilet-element');
+            if (toiletEl) {
+                toiletEl.classList.add('finished'); 
+            }
+            
+            document.getElementById('final-time').textContent = gameState.timeLeft.toFixed(1);
+            document.getElementById('final-steps').textContent = gameConfig.totalSteps;
+            
+            setTimeout(() => {
+                screens.victory.classList.remove('hidden');
+            }, 800); 
+        }
+
+        function hideAllScreens() {
+            screens.splash.classList.add('hidden');
+            screens.start.classList.add('hidden');
+            screens.gameOver.classList.add('hidden');
+            screens.victory.classList.add('hidden');
+        }
+
+        document.getElementById('lets-play-btn').addEventListener('click', () => {
+            screens.splash.classList.add('hidden');
+            screens.start.classList.remove('hidden');
+        });
+
+        document.getElementById('start-btn').addEventListener('click', startGame);
+        document.getElementById('restart-btn').addEventListener('click', startGame);
+        document.getElementById('next-level-btn').addEventListener('click', () => {
+            gameConfig.totalSteps += 10;
+            startGame();
+        });
+
+        const btnRed = document.getElementById('btn-red');
+        const btnGreen = document.getElementById('btn-green');
+        const btnBlue = document.getElementById('btn-blue');
+
+        ['touchstart', 'mousedown'].forEach(evt => {
+            btnRed.addEventListener(evt, (e) => { e.preventDefault(); handleInput('red'); });
+            btnGreen.addEventListener(evt, (e) => { e.preventDefault(); handleInput('green'); });
+            btnBlue.addEventListener(evt, (e) => { e.preventDefault(); handleInput('blue'); });
+        });
+
+        window.addEventListener('keydown', (e) => {
+            if (!gameState.isRunning) return;
+            
+            switch(e.key.toLowerCase()) {
+                case 'arrowleft':
+                case 'a':
+                    btnRed.classList.add('active');
+                    handleInput('red');
+                    break;
+                case 'arrowdown':
+                case 's':
+                    btnGreen.classList.add('active');
+                    handleInput('green');
+                    break;
+                case 'arrowright':
+                case 'd':
+                    btnBlue.classList.add('active');
+                    handleInput('blue');
+                    break;
+            }
+        });
+        
+        window.addEventListener('keyup', (e) => {
+            switch(e.key.toLowerCase()) {
+                case 'arrowleft': case 'a': btnRed.classList.remove('active'); break;
+                case 'arrowdown': case 's': btnGreen.classList.remove('active'); break;
+                case 'arrowright': case 'd': btnBlue.classList.remove('active'); break;
+            }
+        });
+
+        initGame();
+    </script>
+</body>
+</html>
